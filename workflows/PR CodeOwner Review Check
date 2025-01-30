@@ -1,0 +1,95 @@
+name: PR CodeOwner Review Check
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+jobs:
+  check-reviewer:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      checks: write  # Added this permission
+      statuses: write  # Added this permission
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Check if reviewer is codeowner
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read CODEOWNERS file
+            let codeowners;
+            try {
+              codeowners = fs.readFileSync('.github/CODEOWNERS', 'utf8');
+            } catch (error) {
+              core.setFailed('CODEOWNERS file not found in .github directory');
+              return;
+            }
+            // Parse CODEOWNERS file to get list of authorized reviewers
+            const authorizedReviewers = new Set();
+            codeowners.split('\n').forEach(line => {
+              if (line && !line.startsWith('#')) {
+                const matches = line.match(/@[\w-]+/g);
+                if (matches) {
+                  matches.forEach(reviewer => authorizedReviewers.add(reviewer.substring(1)));
+                }
+              }
+            });
+            // Get PR details
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            // Get PR reviews
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            // Check if any approving reviewer is not in CODEOWNERS
+            let unauthorizedApproval = false;
+            let unauthorizedReviewers = [];
+            reviews.data.forEach(review => {
+              if (review.state === 'APPROVED') {
+                const reviewer = review.user.login;
+                if (!authorizedReviewers.has(reviewer)) {
+                  unauthorizedApproval = true;
+                  unauthorizedReviewers.push(reviewer);
+                }
+              }
+            });
+            if (unauthorizedApproval) {
+              // Create status check instead of check run
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.data.head.sha,
+                state: 'failure',
+                description: 'Unauthorized reviewer approval',
+                context: 'CodeOwner Review Check'
+              });
+              // Add comment on PR
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: ⚠️ Warning: This PR has been approved by reviewers who are not listed in CODEOWNERS: ${unauthorizedReviewers.join(', ')}\n\nPlease ensure the PR is reviewed by appropriate code owners.
+              });
+            } else {
+              // Create status check for success case
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.data.head.sha,
+                state: 'success',
+                description: 'All approving reviewers are authorized',
+                context: 'CodeOwner Review Check'
+              });
+            }
