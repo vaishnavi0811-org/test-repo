@@ -7,9 +7,17 @@ on:
 jobs:
   check-approvals:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Set the GitHub token as an environment variable
+
     steps:
       - name: Checkout the PR code
         uses: actions/checkout@v3
+
+      - name: Set up GitHub CLI
+        uses: cli/gh-actions@v2
+        with:
+          gh-token: ${{ secrets.GH_TOKEN }}  # You can still use the token here for the GitHub CLI setup
 
       - name: Get the PR reviews
         id: pr_reviews
