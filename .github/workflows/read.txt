@@ -1,0 +1,24 @@
+Explanation:
+PR Trigger: The workflow is triggered on PR events (opened, synchronize, reopened, review_requested, ready_for_review).
+
+Checkout Code: The actions/checkout step checks out the code from the PR so the action can inspect it.
+
+Check Reviews: The gh pr view command retrieves the reviews for the PR. We parse this JSON data to check if members from both teams (Application and Release) have approved the PR.
+
+Approval Check: The script checks for approvals from both the Application Team and the Release Team. If any of the teams hasn't approved, it will exit with an error message.
+
+Prevent Merge by Application Team: If a member of the Application Team tries to merge the code after approvals have been received, it will block them from merging the PR.
+
+Proceed with Merge: If the PR has the required approvals and the user attempting the merge is not from the Application Team, the merge process is allowed to proceed.
+
+Setup Required:
+GitHub CLI (gh): This script uses the GitHub CLI to fetch PR details. The action assumes that gh is installed and authenticated.
+
+Approval Requirements: In the GitHub repository settings, you will need to enforce required approvals from the Application Team and Release Team.
+
+Customization:
+Replace APPLICATION_TEAM_MEMBERS and RELEASE_TEAM_MEMBERS with the actual GitHub usernames of members from both teams.
+
+Merge Restrictions: You can adjust the merge restriction logic based on specific requirements (e.g., more detailed role checks or additional conditions).
+
+With this setup, the process ensures that both teams approve the changes, and it prevents the Application Team from merging the PR post-approval.
