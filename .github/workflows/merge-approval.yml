@@ -1,0 +1,73 @@
+name: Merge Approval Workflow
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, review_requested, ready_for_review]
+
+jobs:
+  check-approvals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the PR code
+        uses: actions/checkout@v3
+
+      - name: Get the PR reviews
+        id: pr_reviews
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REVIEWS=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews')
+          echo "Reviews: $REVIEWS"
+          echo "::set-output name=reviews::$REVIEWS"
+      
+      - name: Ensure Application and Release Team Approvals
+        id: check_approval
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          
+          APPLICATION_APPROVED=false
+          RELEASE_APPROVED=false
+
+          # Check the reviews and set flags for approval
+          REVIEWS=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state=="APPROVED") | .user.login')
+          echo "Reviews: $REVIEWS"
+          
+          # Application Team approval check (replace with actual Application Team members)
+          APPLICATION_TEAM_MEMBERS=("app-team-member1" "app-team-member2")
+          for user in ${APPLICATION_TEAM_MEMBERS[@]}; do
+            if [[ "$REVIEWS" == *"$user"* ]]; then
+              APPLICATION_APPROVED=true
+              break
+            fi
+          done
+          
+          # Release Team approval check (replace with actual Release Team members)
+          RELEASE_TEAM_MEMBERS=("release-team-member1" "release-team-member2")
+          for user in ${RELEASE_TEAM_MEMBERS[@]}; do
+            if [[ "$REVIEWS" == *"$user"* ]]; then
+              RELEASE_APPROVED=true
+              break
+            fi
+          done
+
+          if [ "$APPLICATION_APPROVED" = false ]; then
+            echo "Error: Application Team approval required."
+            exit 1
+          fi
+
+          if [ "$RELEASE_APPROVED" = false ]; then
+            echo "Error: Release Team approval required."
+            exit 1
+          fi
+
+          echo "Both teams have approved the PR. Proceeding with merge."
+
+      - name: Prevent Application Team from Merging After Approvals
+        if: ${{ github.actor == 'app-team-member1' || github.actor == 'app-team-member2' }}
+        run: |
+          echo "Application Team member cannot merge the PR after approval."
+          exit 1
+
+      - name: Proceed with Merge
+        if: ${{ github.actor != 'app-team-member1' && github.actor != 'app-team-member2' }}
+        run: |
+          echo "Merge is allowed. Proceeding with the merge process."
