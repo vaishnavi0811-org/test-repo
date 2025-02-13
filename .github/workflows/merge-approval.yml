@@ -8,7 +8,7 @@ jobs:
   check-approvals:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Set the GitHub token as an environment variable
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Use the secret GitHub token as an environment variable
 
     steps:
       - name: Checkout the PR code
@@ -17,7 +17,7 @@ jobs:
       - name: Set up GitHub CLI
         uses: cli/gh-actions@v2
         with:
-          gh-token: ${{ secrets.GH_TOKEN }}  # You can still use the token here for the GitHub CLI setup
+          gh-token: ${{ secrets.GH_TOKEN }}  # Pass the token to the GitHub CLI action
 
       - name: Get the PR reviews
         id: pr_reviews
@@ -26,56 +26,7 @@ jobs:
           REVIEWS=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews')
           echo "Reviews: $REVIEWS"
           echo "::set-output name=reviews::$REVIEWS"
-      
+
       - name: Ensure PR-Merge and Test-DevOps Approvals
         id: check_approval
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          
-          PR_MERGE_APPROVED=false
-          TEST_DEVOPS_APPROVED=false
-
-          # Check the reviews and set flags for approval
-          REVIEWS=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state=="APPROVED") | .user.login')
-          echo "Reviews: $REVIEWS"
-          
-          # PR-Merge team approval check (replace with actual PR-Merge team members)
-          PR_MERGE_TEAM_MEMBERS=("pr-merge-member1" "pr-merge-member2")
-          for user in ${PR_MERGE_TEAM_MEMBERS[@]}; do
-            if [[ "$REVIEWS" == *"$user"* ]]; then
-              PR_MERGE_APPROVED=true
-              break
-            fi
-          done
-          
-          # Test-DevOps team approval check (replace with actual Test-DevOps team members)
-          TEST_DEVOPS_TEAM_MEMBERS=("test-devops-member1" "test-devops-member2")
-          for user in ${TEST_DEVOPS_TEAM_MEMBERS[@]}; do
-            if [[ "$REVIEWS" == *"$user"* ]]; then
-              TEST_DEVOPS_APPROVED=true
-              break
-            fi
-          done
-
-          if [ "$PR_MERGE_APPROVED" = false ]; then
-            echo "Error: PR-Merge team approval required."
-            exit 1
-          fi
-
-          if [ "$TEST_DEVOPS_APPROVED" = false ]; then
-            echo "Error: Test-DevOps team approval required."
-            exit 1
-          fi
-
-          echo "Both teams have approved the PR. Proceeding with merge."
-
-      - name: Prevent PR-Merge Team from Merging After Approvals
-        if: ${{ github.actor == 'pr-merge-member1' || github.actor == 'pr-merge-member2' }}
-        run: |
-          echo "PR-Merge team member cannot merge the PR after approval."
-          exit 1
-
-      - name: Proceed with Merge
-        if: ${{ github.actor != 'pr-merge-member1' && github.actor != 'pr-merge-member2' }}
-        run: |
-          echo "Merge is allowed. Proceeding with the merge process."
+        run:
